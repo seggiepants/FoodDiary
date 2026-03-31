@@ -3,54 +3,57 @@
 package main
 
 import (
-	"database/sql"
+	"time"
+
+	"gorm.io/gorm"
 )
 
-type product struct {
-	ID    int     `json:"id"`
-	Name  string  `json:"name"`
-	Price float64 `json:"price"`
+type Product struct {
+	ID        int     `json:"id" gorm:"primaryKey"`
+	Name      string  `json:"name"`
+	Price     float64 `json:"price"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt time.Time
 }
 
-// Shouldn't most of these use prepared statements to prevent sql injection?
-// I guess the $1, $2, etc. are doing that, my bad.
-
-func (p *product) getProduct(db *sql.DB) error {
-	return db.QueryRow("SELECT name, price FROM products WHERE id=$1", p.ID).Scan(&p.Name, &p.Price)
-}
-
-func (p *product) updateProduct(db *sql.DB) error {
-	_, err := db.Exec("UPDATE products SET name=$1, price=$2 WHERE id=$3", p.Name, p.Price, p.ID)
-	return err
-}
-
-func (p *product) deleteProduct(db *sql.DB) error {
-	_, err := db.Exec("DELETE FROM products WHERE id=$1", p.ID)
-	return err
-}
-
-func (p *product) createProduct(db *sql.DB) error {
-	err := db.QueryRow("INSERT INTO products(name, price) VALUES($1, $2) RETURNING id", p.Name, p.Price).Scan(&p.ID)
-	if err != nil {
-		return err
+func (p *Product) getProduct(db *gorm.DB) error {
+	result := db.Limit(1).Take(p)
+	if result.Error != nil {
+		return result.Error
 	}
-	return nil // why do we have the previous nil check?
+	return nil
 }
 
-func getProducts(db *sql.DB, start, count int) ([]product, error) {
-	rows, err := db.Query("SELECT id, name, price FROM products LIMIT $1 OFFSET $2", count, start)
-	if err != nil {
-		return nil, err
+func (p *Product) updateProduct(db *gorm.DB) error {
+	result := db.Save(p)
+	if result.Error != nil {
+		return result.Error
 	}
-	defer rows.Close() // Close at end of function call
-	products := []product{}
+	return nil
+}
 
-	for rows.Next() {
-		var p product
-		if err := rows.Scan(&p.ID, &p.Name, &p.Price); err != nil {
-			return nil, err
-		}
-		products = append(products, p)
+func (p *Product) deleteProduct(db *gorm.DB) error {
+	result := db.Delete(p)
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+func (p *Product) createProduct(db *gorm.DB) error {
+	result := db.Create(p)
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+func getProducts(db *gorm.DB, start, count int) ([]Product, error) {
+	var products []Product
+	result := db.Offset(start).Limit(count).Find(&products)
+	if result.Error != nil {
+		return nil, result.Error
 	}
 	return products, nil
 }
