@@ -11,18 +11,19 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type App struct {
 	Router *mux.Router
-	DB     *sql.DB
+	DB     *gorm.DB
 }
 
 func (a *App) Initialize(user, password, host, dbname string) {
 	connectionString := fmt.Sprintf("user=%s password=%s host=%s dbname=%s sslmode=disable", user, password, host, dbname)
 	var err error
-	a.DB, err = sql.Open("postgres", connectionString)
+	a.DB, err = gorm.Open(postgres.Open(connectionString), &gorm.Config{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -45,7 +46,7 @@ func (a *App) Run(addr string) {
 }
 
 func (a *App) createProduct(w http.ResponseWriter, r *http.Request) {
-	var p product
+	var p Product
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&p); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
@@ -70,7 +71,7 @@ func (a *App) deleteProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p := product{ID: id}
+	p := Product{ID: id}
 	if err := p.deleteProduct(a.DB); err != nil {
 		respondWithError(w, http.StatusInternalServerError, err.Error())
 	}
@@ -86,10 +87,10 @@ func (a *App) getProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p := product{ID: id}
+	p := Product{ID: id}
 	if err := p.getProduct(a.DB); err != nil {
 		switch err {
-		case sql.ErrNoRows:
+		case sql.ErrNoRows, gorm.ErrRecordNotFound:
 			respondWithError(w, http.StatusNotFound, "Product not found")
 		default:
 			respondWithError(w, http.StatusInternalServerError, err.Error())
@@ -129,7 +130,7 @@ func (a *App) updateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var p product
+	var p Product
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&p); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request payload")

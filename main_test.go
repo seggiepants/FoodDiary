@@ -4,7 +4,6 @@ package main_test
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,23 +28,13 @@ func TestMain(m *testing.M) {
 }
 
 func ensureTableExists() {
-	if _, err := a.DB.Exec(tableCreationQuery); err != nil {
-		log.Fatal(err)
-	}
+	a.DB.AutoMigrate(&main.Product{})
 }
 
 func clearTable() {
-	a.DB.Exec("DELETE FROM products")
+	a.DB.Where("1 = 1").Delete(&main.Product{})
 	a.DB.Exec("ALTER SEQUENCE products_id_seq RESTART WITH 1")
 }
-
-const tableCreationQuery = `CREATE TABLE IF NOT EXISTS products
-(
-	id SERIAL,
-	name TEXT NOT NULL,
-	price NUMERIC(10,2) NOT NULL DEFAULT 0.00,
-	CONSTRAINT products_pkey PRIMARY KEY (id)
-)`
 
 func TestEmptyTable(t *testing.T) {
 	clearTable()
@@ -132,7 +121,9 @@ func addProducts(count int) {
 	}
 
 	for i := 0; i < count; i++ {
-		a.DB.Exec("INSERT INTO products(name, price) VALUES($1, $2)", "Product "+strconv.Itoa(i), (i+1.0)*10)
+		var price float64 = (float64(i) + 1.0) * 10.0
+		p := main.Product{Name: "Product " + strconv.Itoa(i), Price: price}
+		a.DB.Create(&p)
 	}
 }
 
